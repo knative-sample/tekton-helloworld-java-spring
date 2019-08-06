@@ -5,10 +5,6 @@ metadata:
 spec:
   pipelineRef:
     name: build-and-deploy-pipeline
-  resources:
-    - name: git-source
-      resourceRef:
-        name: tekton-knative-git
   params:
     - name: pathToContext
       value: "java"
@@ -22,4 +18,5 @@ spec:
       value: "https://github.com/knative-sample/tekton-helloworld-java-spring.git"
   trigger:
     type: manual
+  timeout: 0h30m0s
   serviceAccount: pipeline-account

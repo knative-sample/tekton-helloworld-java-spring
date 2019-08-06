@@ -4,9 +4,6 @@ metadata:
   name: deploy-using-kubectl
 spec:
   inputs:
-    resources:
-      - name: git-source
-        type: git
     params:
       - name: pathToYamlFile
         description: The path to the yaml file to deploy within the git source
@@ -15,19 +12,64 @@ spec:
       - name: imageTag
         description: Tag of the images to be used.
         default: "latest"
+      - name: gitRepo
+        description: "git repo for user code # https://username:password@github.com/username/repository.git"
   steps:
-    - name: update-yaml
-      image: alpine
-      command: ["sed"]
+    - name: git-clone
+      image: registry.cn-hangzhou.aliyuncs.com/knative-sample/alpine-git:1.0.7
+      command:
+        - sh
       args:
-        - "-i"
-        - "-e"
-        - "s;__IMAGE__;${inputs.params.imageUrl}:${inputs.params.imageTag};g"
-        - "/workspace/git-source/${inputs.params.pathToYamlFile}"
+        - -c 
+        - |
+          schema="https"
+          path="${inputs.params.gitRepo}"
+          rawPath="${inputs.params.gitRepo}"
+          username=$(cat /git-home/.git-secret/username)
+          password=$(cat /git-home/.git-secret/password)
+
+          if [[ "${rawPath:0:8}" = "https://" ]]; then
+            path=$(echo "${inputs.params.gitRepo}"|awk -F"://" '{print $2}')
+            schema="https"
+          fi
+
+          if [[ "${rawPath:0:7}" = "http://" ]]; then
+            path=$(echo "${inputs.params.gitRepo}"|awk -F"://" '{print $2}')
+            schema="http"
+          fi
+
+          git clone "${schema}://${username}:${password}@${path}" /git-home/code
+          echo "git clone ${schema}://${username}:${password}@${path}" 
+
+      volumeMounts:
+        - name: code-dir
+          mountPath: /git-home/
+        - name: git-secret
+          mountPath: /git-home/.git-secret
+          readOnly: true
+
     - name: run-kubectl
       image: registry.cn-hangzhou.aliyuncs.com/knative-sample/kubectl:v0.5.0
-      command: ["kubectl"]
+      command:
+        - sh
       args:
-        - "apply"
-        - "-f"
-        - "/workspace/git-source/${inputs.params.pathToYamlFile}"
+        - -c
+        - |
+          sed -i -e "s;__IMAGE__;${inputs.params.imageUrl}:${inputs.params.imageTag};g" "/git-home/code/${inputs.params.pathToYamlFile}" && echo "sed replace image success" || echo "sed error"
+          kubectl apply -f /git-home/code/${inputs.params.pathToYamlFile} && echo "apply yaml success" || echo "apply yaml error"
+      volumeMounts:
+        - name: code-dir
+          mountPath: /git-home/
+
+  volumes:
+  - name: code-dir
+    emptyDir: {}
+  - name: git-secret
+    secret:
+      secretName: gitrepo-secret
+      items:
+        - key: username
+          path: username
+        - key: password
+          path: password
+

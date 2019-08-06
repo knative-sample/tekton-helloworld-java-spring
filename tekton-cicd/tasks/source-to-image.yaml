@@ -4,9 +4,6 @@ metadata:
   name: source-to-image
 spec:
   inputs:
-    resources:
-      - name: git-source
-        type: git
     params:
       - name: pathToContext
         description: The path to the build context, used by Kaniko - within the workspace
@@ -30,12 +27,31 @@ spec:
       args:
         - -c 
         - |
-          git clone '${inputs.params.gitRepo}' /workspace/home/code
-          echo "git clone ${inputs.params.gitRepo} success";
-          ls -al /workspace/home/code
+          schema="https"
+          path="${inputs.params.gitRepo}"
+          rawPath="${inputs.params.gitRepo}"
+          username=$(cat /git-home/.git-secret/username)
+          password=$(cat /git-home/.git-secret/password)
+
+          if [[ "${rawPath:0:8}" = "https://" ]]; then
+            path=$(echo "${inputs.params.gitRepo}"|awk -F"://" '{print $2}')
+            schema="https"
+          fi
+
+          if [[ "${rawPath:0:7}" = "http://" ]]; then
+            path=$(echo "${inputs.params.gitRepo}"|awk -F"://" '{print $2}')
+            schema="http"
+          fi
+
+          msg="git clone ${schema}://${username}:${password}@${path}" 
+          git clone "${schema}://${username}:${password}@${path}" /git-home/code && echo "${msg} success" || echo "${msg} failed"
+
       volumeMounts:
         - name: code-dir
-          mountPath: /workspace/home/
+          mountPath: /git-home/
+        - name: git-secret
+          mountPath: /git-home/.git-secret
+          readOnly: true
 
     - name: build-and-push
       image: registry.cn-hangzhou.aliyuncs.com/knative-sample/kaniko-project-executor:v0.10.0
@@ -44,14 +60,22 @@ spec:
       args:
         - --dockerfile=${inputs.params.pathToDockerFile}
         - --destination=${inputs.params.imageUrl}:${inputs.params.imageTag}
-        - --context=/builder/home/code/java/
+        - --context=/git-home/code/java/
       volumeMounts:
         - name: code-dir
-          mountPath: /workspace/home/
+          mountPath: /git-home/
       env:
       - name: DOCKER_CONFIG
         value: /builder/home/.docker
   volumes:
   - name: code-dir
     emptyDir: {}
+  - name: git-secret
+    secret:
+      secretName: gitrepo-secret
+      items:
+        - key: username
+          path: username
+        - key: password
+          path: password
 
