@@ -9,7 +9,7 @@ spec:
     - name: pathToContext
       value: "java"
     - name: pathToYamlFile
-      value: "knative/helloworld-java.yaml"
+      value: "java/knative-service.yaml"
     - name: imageUrl
       value: "registry.cn-hangzhou.aliyuncs.com/knative-sample/tekton-knative-helloworld-java"
     - name: imageTag

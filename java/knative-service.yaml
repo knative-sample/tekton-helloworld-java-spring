@@ -10,3 +10,6 @@ spec:
         spec:
           container:
             image: __IMAGE__
+            env:
+              - name: MESSAGE
+                value: "__MESSAGE__"
