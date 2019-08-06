@@ -1,0 +1,21 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  generateName: deploy-to-cluster-xx
+spec:
+  inputs:
+    params:
+    - name: pathToYamlFile
+      value: knative/helloworld-java.yaml
+    - name: imageUrl
+      value: registry.cn-hangzhou.aliyuncs.com/knative-sample/tekton-knative-helloworld-java
+    - name: imageTag
+      value: "1.0"
+    - name: gitRepo
+      value: https://github.com/knative-sample/tekton-helloworld-java-spring.git
+  outputs: {}
+  serviceAccount: pipeline-account
+  taskRef:
+    kind: Task
+    name: deploy-using-kubectl
+  timeout: 30m0s
